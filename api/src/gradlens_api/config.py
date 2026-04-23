@@ -32,11 +32,13 @@ class Settings(BaseSettings):
 
     # CORS — which origins the Next.js web app is allowed to call from.
     # In prod this will be the deployed Vercel URL; in dev we accept
-    # localhost so `pnpm dev` and `uv run uvicorn` can talk to each
-    # other without extra config.
+    # localhost on 3000 (pnpm dev default) and 3100 (fallback when 3000
+    # is occupied by another project) so the two can coexist.
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:3100",
+        "http://127.0.0.1:3100",
     ]
 
 

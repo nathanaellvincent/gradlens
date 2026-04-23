@@ -1,1 +1,35 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  /* Neutral greyscale — zinc scale, slightly warmer than slate. */
+  --color-bg: #09090b;
+  --color-bg-soft: #18181b;
+  --color-surface: #1f1f23;
+  --color-border: #27272a;
+  --color-border-soft: #3f3f46;
+  --color-ink: #fafafa;
+  --color-ink-muted: #a1a1aa;
+  --color-ink-dim: #71717a;
+
+  /* Accent — cool cyan, cribbed from terminal iconography. */
+  --color-accent: #22d3ee;
+  --color-accent-soft: #67e8f9;
+  --color-accent-deep: #0e7490;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-accent-deep);
+  color: var(--color-ink);
+}
