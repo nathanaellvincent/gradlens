@@ -2,75 +2,148 @@
 
 > Semantic search for graduate schemes, internships, and entry-level engineering roles — built for final-year students drowning in 50-tab job boards.
 
-Type a natural-language query like *"AI/ML grad schemes in London that sponsor visas, starting September 2026"* and get a ranked list of real, currently-open postings with citations back to the source JD.
+Type a natural-language query like *"new grad machine learning engineer, remote UK"* and get a ranked list of real, currently-open postings with direct links back to the source JD.
 
-**Status:** MVP in progress. Semantic retrieval working end-to-end (day 1). LLM-generated answers + visa-sponsorship auto-flag land in week 2.
+**Status — day 1 MVP shipped:**
+
+| Stage | State |
+|---|---|
+| Ingestion (Greenhouse, 5 companies) | ✅ 1,724 open roles |
+| Embedding pipeline (bge-small, ONNX) | ✅ 17 jobs/s on CPU |
+| LanceDB vector index | ✅ ~2s cold-open, 384-dim |
+| `GET /search` endpoint | ✅ 10ms p50 warm |
+| Next.js search console | ✅ wired end-to-end |
+| Reranker (Cohere / MiniLM cross-encoder) | ⏳ next commit |
+| LLM answer + citations (Groq / Llama 3.3 70B) | ⏳ week 2 |
+| Evaluation harness (recall@k, faithfulness) | ⏳ week 2 |
+| Public deployment | ⏳ week 2 |
 
 ## Why this exists
 
-I'm graduating in July 2026 and currently applying. Existing job boards are either:
+I'm graduating July 2026 and currently applying. Existing job boards are either:
 
-- **Keyword-matching only** — "machine learning" doesn't find JDs titled "ML Engineer, New Grad"
+- **Keyword-matching only** — "machine learning" doesn't find JDs titled *"ML Engineer, New Grad"*
 - **Opaque about filters that actually matter** — visa sponsorship, start dates, whether they take final-year undergrads
 - **Walled-garden aggregators** — scrape-blocked, paywalled, or abandoned
 
 GradLens is the tool I wanted while job-hunting, so I'm building it and using it myself.
 
+## Architecture
+
+```
+                                            ┌──── eval harness ─────┐
+                                            │  recall@k, latency,   │
+                                            │  faithfulness, cost   │
+                                            └──────────▲────────────┘
+                                                       │ (week 2+)
+┌──────────────┐                                       │
+│  Greenhouse  │                                       │
+│  boards API  │─► parse ─► strip HTML ─► SQLite ──────┼──► bge-small ──► LanceDB
+│  (public)    │            (stdlib)     (metadata)    │    (ONNX CPU)    (vectors)
+└──────────────┘                                       │                     │
+                                                       │                     │
+  user query ─► prefix ─► bge-small ─► top-k ─► [reranker] ─► [LLM] ─► Next.js UI
+                          (ONNX CPU)                 ▲           ▲
+                                                     │           │
+                                             next commit      week 2
+```
+
+Both ingestion + index build are idempotent CLIs — the whole pipeline can be rebuilt from upstream in under 2 minutes.
+
 ## Stack
 
 | Layer | Choice | Why |
 |---|---|---|
-| Embeddings | `BAAI/bge-small-en-v1.5` (local, CPU) | No API keys, $0 per query |
-| Reranker | `cross-encoder/ms-marco-MiniLM-L6-v2` | Second-stage relevance, local |
-| Vector store | LanceDB | Embedded, columnar, arrow-based |
-| Backend | FastAPI (Python 3.12, `uv`) | Async, typed, small footprint |
-| Frontend | Next.js 16 App Router + Tailwind 4 | Matches my portfolio stack |
-| Data source | Greenhouse public JSON API | Free, stable, thousands of JDs |
-| Eval | Custom harness (Python CLI) | Recall@k, latency p95, cost tracking |
+| Embeddings | `BAAI/bge-small-en-v1.5` via fastembed | Local, CPU, ONNX — no torch, no GPU, no API key |
+| Vector store | LanceDB | Embedded, file-backed, arrow/columnar, no server process |
+| Backend | FastAPI + uv (Python 3.12) | Async, typed, fast iter via `uv run` |
+| Frontend | Next.js 16 App Router + Tailwind 4 | Turbopack dev loop, App Router server components |
+| Data source | Greenhouse public boards API | Free, stable, thousands of JDs via slug curation |
+| Reranker *(next)* | `ms-marco-MiniLM-L6-v2` cross-encoder | Local, cheap, material recall bump at top-k |
+| LLM *(week 2)* | Groq free tier — Llama 3.3 70B | Zero-cost generation, citation-constrained prompt |
 
-**No OpenAI / Anthropic / Pinecone / Cohere.** Every component runs locally or on free tiers. Upgrade paths are documented (`docs/upgrade-paths.md`) for when retrieval quality demands hosted embeddings or a managed reranker.
+**No OpenAI / Anthropic / Pinecone / Cohere paid keys.** Every component runs locally or on free tiers. Upgrade paths documented in commit history — each component has a swap-in hosted alternative.
 
-## Architecture
+## Layout
 
 ```
-  ┌────────────────┐
-  │ Greenhouse API │──► parse ──► chunk ──► embed (bge-small) ──┐
-  │ (per company)  │                                             ▼
-  └────────────────┘                                      ┌──────────┐
-                                                          │ LanceDB  │
-                                                          └────┬─────┘
-                                                               │
-  user query ──► embed ──► top-20 ──► reranker ──► top-5 ──► Next.js UI
-                                      (MiniLM)
+gradlens/
+├── api/                         FastAPI backend (uv-managed)
+│   ├── src/gradlens_api/
+│   │   ├── config.py            pydantic-settings, GRADLENS_ env prefix
+│   │   ├── main.py              app factory + CORS + router wiring
+│   │   ├── ingest/              upstream fetchers + SQLite store
+│   │   │   ├── greenhouse.py    Greenhouse board adapter
+│   │   │   ├── models.py        canonical Job schema
+│   │   │   ├── store.py         SQLite upsert layer
+│   │   │   └── cli.py           `gradlens-ingest`
+│   │   ├── search/              embed + index + retrieve
+│   │   │   ├── embed.py         fastembed wrapper, query/passage asymmetry
+│   │   │   ├── index.py         LanceDB table + search
+│   │   │   ├── retrieve.py      query → hits
+│   │   │   └── build_cli.py     `gradlens-build-index`
+│   │   └── routers/
+│   │       ├── health.py        GET /health
+│   │       └── search.py        GET /search
+│   └── pyproject.toml
+├── web/                         Next.js 16 App Router
+│   └── src/
+│       ├── app/                 layout + home (search console)
+│       ├── components/
+│       │   └── search-console.tsx
+│       └── lib/
+│           └── api.ts           typed /search client
+└── README.md (this file)
 ```
-
-LLM generation (week 2) plugs in between reranker and UI, constrained to cite only the retrieved chunks.
 
 ## Getting started
 
 ```bash
-# Prereqs: Node 20+, Python 3.12+, uv, pnpm (or npm)
+# Prereqs: Node 20+, pnpm, Python 3.12+, uv
 
-# Backend
-cd api
-uv sync
-uv run uvicorn app.main:app --reload
+# 1. Install
+cd api && uv sync && cd -
+cd web && pnpm install && cd -
 
-# Frontend
-cd web
-pnpm install
-pnpm dev
+# 2. Pull job descriptions from upstream
+cd api && uv run gradlens-ingest
+# → ingests ~1700 open roles across 5 curated companies
+
+# 3. Build the vector index
+uv run gradlens-build-index
+# → ~90s on an M-series CPU. Prints a sample-query probe on completion.
+
+# 4. Run the API
+uv run gradlens-api
+# → http://127.0.0.1:8000
+
+# 5. Run the frontend (separate terminal)
+cd web && pnpm dev --port 3100
+# → http://localhost:3100
 ```
 
-Full dev setup + ingestion scripts: [`docs/dev-setup.md`](./docs/dev-setup.md) (coming).
+Sanity probes:
+
+```bash
+curl http://127.0.0.1:8000/health
+# {"status":"ok","version":"0.1.0","env":"dev"}
+
+curl 'http://127.0.0.1:8000/search?q=new+grad+machine+learning&k=3' | jq '.hits[].title'
+```
+
+## Configuration
+
+All runtime config reads from env vars prefixed `GRADLENS_`. See `api/.env.example` for the full schema. Copy to `api/.env` for local overrides.
+
+Frontend API base URL: `NEXT_PUBLIC_API_URL` (defaults to `http://127.0.0.1:8000`).
 
 ## Roadmap
 
-- [x] Day 1 — repo scaffold, ingestion from 5 Greenhouse companies, semantic search end-to-end
-- [ ] Day 2 — eval harness (recall@k over hand-curated query set)
-- [ ] Day 3 — LLM answer layer (Groq / Llama 3.3 70B) with citation-only generation
-- [ ] Week 2 — visa sponsorship flag, deadline filter, multi-source ingest (Ashby, Lever)
-- [ ] Week 3 — faithfulness eval, deployment, public launch
+- [x] **Day 1 — MVP shipped:** scaffold, Greenhouse ingestion (5 boards, 1724 jobs), bge-small embeddings, LanceDB index, `GET /search`, Next.js search UI
+- [ ] **Day 2** — MiniLM cross-encoder reranker, evaluation harness with ~30 golden queries, recall@k + latency p95 tracking
+- [ ] **Day 3** — LLM answer layer on top of retrieved chunks (Groq free tier, Llama 3.3 70B), citation-grounded
+- [ ] **Week 2** — Ashby + Lever adapters, visa sponsorship auto-flag via zero-shot classifier, deadline filter UI
+- [ ] **Week 3** — faithfulness eval (RAGAs-style), Vercel + Fly.io deploy, public beta
 
 ## License
 
