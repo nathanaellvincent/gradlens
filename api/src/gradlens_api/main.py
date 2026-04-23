@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from gradlens_api import __version__
 from gradlens_api.config import settings
-from gradlens_api.routers import health
+from gradlens_api.routers import health, search
 
 
 def create_app() -> FastAPI:
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router)
+    app.include_router(search.router)
 
     return app
 
