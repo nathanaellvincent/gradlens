@@ -1,0 +1,40 @@
+[project]
+name = "gradlens-api"
+version = "0.1.0"
+description = "FastAPI backend for GradLens — semantic search over graduate-scheme job descriptions."
+readme = "README.md"
+authors = [
+    { name = "Vincent Nathanael", email = "nathanaelv@coventry.ac.uk" },
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7",
+    "pytest>=8.3",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+gradlens-api = "gradlens_api.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["E501"]  # line-length enforced by formatter
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
