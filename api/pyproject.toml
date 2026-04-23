@@ -13,6 +13,9 @@ dependencies = [
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "httpx>=0.27",
+    "fastembed>=0.4",
+    "lancedb>=0.14",
+    "numpy>=2.0",
 ]
 
 [dependency-groups]
@@ -25,6 +28,7 @@ dev = [
 [project.scripts]
 gradlens-api = "gradlens_api.cli:main"
 gradlens-ingest = "gradlens_api.ingest.cli:main"
+gradlens-build-index = "gradlens_api.search.build_cli:main"
 
 [build-system]
 requires = ["uv_build>=0.11.7,<0.12.0"]
