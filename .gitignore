@@ -1,0 +1,54 @@
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+.vercel/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.uv-cache/
+
+# --- Environment ---
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# --- Data / models ---
+# LanceDB indexes — rebuild from ingestion scripts
+data/lance/
+data/*.sqlite
+data/*.db
+# Cached model downloads from huggingface
+.cache/
+models/
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
