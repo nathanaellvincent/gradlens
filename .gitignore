@@ -28,10 +28,9 @@ env/
 !.env.example
 
 # --- Data / models ---
-# LanceDB indexes — rebuild from ingestion scripts
-data/lance/
-data/*.sqlite
-data/*.db
+# SQLite store + LanceDB index — rebuild via `gradlens-ingest`.
+# Patterns use **/ so any data/ dir at any depth is caught (api/data/, web/data/, ...)
+**/data/
 # Cached model downloads from huggingface
 .cache/
 models/
